@@ -75,34 +75,34 @@ def scrape_supreme_court_verdicts(verbose: bool=True):
     # find scrollable container with results
     res_window = driver.find_element(By.XPATH, '//div[@class="results-listing"]')
 
-    # get pdf button elements
-    # scroll until the number of pdf links reaches 500 
-    pdf_buttons = driver.find_elements(By.XPATH, '//a[@class="file-link pdf-link"]')
+    # get html button elements
+    # scroll until the number of html links reaches 500 
+    html_buttons = driver.find_elements(By.XPATH, '//a[@class="file-link html-link"]')
 
-    while(len(pdf_buttons) < 500):
+    while(len(html_buttons) < 500):
         driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;',
                             res_window)
-        pdf_buttons = driver.find_elements(By.XPATH, '//a[@class="file-link pdf-link"]')
+        html_buttons = driver.find_elements(By.XPATH, '//a[@class="file-link html-link"]')
     
-    # get urls to pdfs
-    pdf_hrefs = [e.get_attribute('href') for e in pdf_buttons]
-    pdf_links = [h if h.startswith("https://supremedecisions.court.gov.il")
+    # get urls to htmls
+    html_hrefs = [e.get_attribute('href') for e in html_buttons]
+    html_links = [h if h.startswith("https://supremedecisions.court.gov.il")
                  else f"https://supremedecisions.court.gov.il/{h}"
-                 for h in pdf_hrefs]
+                 for h in html_hrefs]
 
     if verbose:
-        print(f"Retrieved {len(pdf_links)} pdf links")
+        print(f"Retrieved {len(html_links)} html links")
     
     driver.close()
 
     os.mkdir(save_dir)
 
-    for link in pdf_links:
-        filename = f"{re.findall(r'fileName=.*&', link)[0][9:-1]}.pdf"
+    for link in html_links:
+        filename = f"{re.findall(r'fileName=.*&', link)[0][9:-1]}.html"
         urlretrieve(link, f"{save_dir}/{filename}")
 
     if verbose:
-        print(f"Saved {len(pdf_links)} pdf files to {save_dir}")
+        print(f"Saved {len(html_links)} html files to {save_dir}")
         print("Done!")
 
 
