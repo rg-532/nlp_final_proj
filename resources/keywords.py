@@ -10,9 +10,6 @@ from functools import reduce
 
 from gensim.models import Word2Vec
 
-import torch
-import torch.nn as nn
-
 
 ### SECTION 3 ###
 

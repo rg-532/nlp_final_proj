@@ -42,7 +42,7 @@ def scrape_html(filepath: str) -> List[str]:
 
 ### RAW TEXT TO WORD LIST ###
 
-def to_word_list(raw_text: List[str]) -> List[str]:
+def to_word_list(raw_text: str) -> List[str]:
     """Translates the output of the `scrape_html` method to a list of words.
     
     Also cleans the output by:
