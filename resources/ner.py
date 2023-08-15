@@ -5,6 +5,22 @@ Includes solutions for the named entity recognition assignments (Sections 2, 6).
 
 import re
 from typing import List, Dict
+import numpy as np
+
+
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from sklearn.model_selection import train_test_split
+
+import tensorflow as tf
+from tensorflow import keras
+
+from keras.models import Sequential
+from keras.layers import LSTM,Embedding
+from tensorflow.keras.layers import InputLayer, SpatialDropout1D, Bidirectional
+
+from tqdm import tqdm
+
+from utils import train_model
 
 
 ### SECTION 2 ###
@@ -134,3 +150,59 @@ def extract_ner(raw_docs: Dict[str, List[str]]):
         "Parsed_Tags": parsed_tags
     }
 
+
+### SECTION 6 ###
+
+def prep_data(tagged_sents):
+    words = [item for sublist in tagged_sents["Parsed_Sentences"] for item in sublist]
+    tags = [item for sublist in tagged_sents["Parsed_Tags"] for item in sublist]
+    
+    word2idx = {w: i for i,w in enumerate(set(words))}
+    tag2idx = {t: i for i,t in enumerate(set(tags))}
+
+    data_seqs = [[word2idx[w] for w in words[i:i+50]] for i in range(0, len(words), 50)]
+    data_seqs = pad_sequences(sequences=data_seqs, padding="post", value=len(words))
+
+    tag_seqs = [[tag2idx[t] for t in tags[i:i+50]] for i in range(0, len(tags), 50)]
+    tag_seqs = pad_sequences(sequences=tag_seqs, padding="post", value=tag2idx["O"])
+    
+    t_data, v_data, t_tags, v_tags = train_test_split(
+        data_seqs, tag_seqs,
+        test_size=0.2,
+        random_state=1
+    )
+
+    return t_data, v_data, t_tags, v_tags, word2idx, tag2idx
+
+def build_model(in_size, vocab_size, num_tags):
+    model = keras.Sequential()
+    model.add(InputLayer((in_size)))
+    model.add(Embedding(input_dim=vocab_size+1, output_dim=in_size, input_length=in_size))
+    model.add(SpatialDropout1D(0.1))
+    model.add(Bidirectional(LSTM(units=100, return_sequences=True, recurrent_dropout=0.1)))
+    model.add(keras.layers.Dense(num_tags, activation="softmax"))
+
+    return model
+
+def ner_model_predictions(tagged_sents):
+    t_data, v_data, t_tags, v_tags, word2idx, tag2idx = prep_data(tagged_sents)
+    
+    max_len = max([len(d) for d in t_data])
+    
+    model = build_model(max_len, len(word2idx), len(tag2idx))
+    train_model(model, t_data, v_data, t_tags, v_tags)
+
+    idx2word = {i: w for w,i in word2idx.items()}
+    idx2word[len(idx2word)] = "<PAD>"
+    idx2tag = {i: t for t,i in tag2idx.items()}
+
+    data = np.concatenate((t_data, v_data))
+    tags = np.concatenate((t_tags, v_tags))
+    results = []
+
+    for d_seq, t_seq in tqdm(zip(data, tags), desc="Generating Predictions . . ."):
+        pred = np.argmax(model.predict(np.array([d_seq]), verbose=0)[0], axis=-1)
+        results.append([(idx2word[wi], idx2tag[ti], idx2tag[pi])
+                        for wi,ti,pi in zip(d_seq, t_seq, pred)])
+    
+    return results

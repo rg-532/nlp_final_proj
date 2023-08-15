@@ -9,6 +9,9 @@ import string
 from bs4 import BeautifulSoup
 from bs4.element import Comment, Declaration
 
+from livelossplot.tf_keras import PlotLossesCallback
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+
 
 ### HTML FILE TO RAW TEXT ###
 
@@ -74,3 +77,25 @@ def to_word_list(raw_text: str) -> List[str]:
             clean_words.append(word)
 
     return clean_words
+
+
+### NEURAL NETWORK SUPPORT ###
+
+def train_model(model, t_data, v_data, t_tags, v_tags, epochs=5, batch_size=32):
+    model.compile(
+        optimizer="adam",
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+
+    model.summary()
+    
+    early_stopping = EarlyStopping(monitor='val_accuracy', min_delta=0, patience=1, verbose=0, mode='max', baseline=None, restore_best_weights=False)
+    callbacks = [PlotLossesCallback(), early_stopping]
+
+    model.fit(
+        x=t_data, y=t_tags,
+        validation_data=(v_data, v_tags),
+        batch_size=batch_size, epochs=epochs,
+        callbacks=callbacks, verbose=1
+    )

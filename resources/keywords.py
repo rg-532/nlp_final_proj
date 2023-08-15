@@ -11,6 +11,15 @@ from functools import reduce
 from gensim.models import Word2Vec
 
 
+from tqdm import tqdm
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from sklearn.model_selection import train_test_split
+
+import tensorflow as tf
+from keras import layers, Model
+
+from utils import train_model
+
 ### SECTION 3 ###
 
 def get_tf_idf_scores(docs: Dict[str, List[str]]) -> Dict[str, Dict[str, float]]:
@@ -101,6 +110,71 @@ def get_word2vec_scores(
 
 ### SECTION 10 ###
 
+def prep_data(docs: Dict[str, List[str]]):
+    vocab = set(reduce(lambda x,y: x+y, docs.values()))
+    word2ind = {w: i for i,w in zip(range(1, len(vocab)+1), vocab)}
+    sequences = [[word2ind[w] for w in d] for d in docs.values()]
+
+    split_seqs = [[s[i:i+50] for i in range(0, len(s), 50)] for s in sequences]
+    split_seqs = reduce(lambda x,y: x+y, split_seqs)
+    data = pad_sequences(sequences=split_seqs, value=0)
+    
+    t_data, v_data = train_test_split(data, test_size=0.2, random_state=1)
+
+    return t_data, v_data, word2ind
+
+
+def build_model(vocab_size, h_size=2000, emb_size: int=400):
+    inp = layers.Input((None,))
+    emb = layers.Embedding(input_dim=vocab_size + 1, output_dim=h_size)(inp)
+    enc_out = layers.GRU(emb_size, return_sequences=True)(emb)
+
+    dec_in = layers.GRU(emb_size, return_sequences=True)(enc_out)
+    dec_h = layers.Dense(h_size)(dec_in)
+    dec_out = layers.Dense(vocab_size + 1, activation="softmax")(dec_h)
+
+    autoencoder = Model(inp, dec_out)
+    encoder = Model(inp, enc_out)
+
+    return autoencoder, encoder
+
+
+def get_autoencoder_scores(
+        docs: Dict[str, List[str]],
+        epochs: int=15,
+        emb_size: int=400
+    ) -> Dict[str, Dict[str, float]]:
+    
+    """Generates a score for each unique word in each document using the autoencoder method to generate
+    embeddings and then use those in `get_scores_by_embeddings`.
+    """
+
+    t_data, v_data, word2ind = prep_data(docs)
+    autoencoder, encoder = build_model(len(word2ind), emb_size=emb_size)
+    train_model(autoencoder, t_data, v_data, t_data, v_data, epochs=epochs)
+
+    # generate embeddings
+    data = np.concatenate((t_data, v_data))
+    ind2word = {i: w for w,i in word2ind.items()}
+    word_freqs, emb_sums = {}, {}
+    sliced_data = [data[i:i+32] for i in range(0, len(data), 32)]
+
+    for sd in tqdm(sliced_data, desc="Generating Embeddings . . ."):
+        spred = encoder.predict(np.array(sd), verbose=0)[0]
+
+        for d, pred in zip(sd, spred):
+            for w_ind, embs in zip(d, pred):
+                if w_ind != 0:
+                    word = ind2word[w_ind]
+                    word_freqs[word] = word_freqs.get(word, 0) + 1
+                    emb_sums[word] = emb_sums.get(word, np.zeros((emb_size,))) + embs
+
+    embeddings = {}
+
+    for word in emb_sums.keys():
+        embeddings[word] = emb_sums[word] / word_freqs[word]
+    
+    return get_scores_by_embeddings(docs, embeddings)
 
 
 
@@ -151,6 +225,8 @@ def extract_keywords(
         scores = get_tf_idf_scores(docs)
     elif mode in ["word2vec", "word 2 vec", "w2v", "wordtovec", "word to vec", "wtv"]:
         scores = get_word2vec_scores(docs)
+    elif mode in ["autoencoder", "auto encoder", "auto-encoder", "ae"]:
+        scores = get_autoencoder_scores(docs)
     else:
         raise ValueError(f"argument 'mode' must be one of 'tf-idf', 'word2vec' or 'autoencoder'")
 
