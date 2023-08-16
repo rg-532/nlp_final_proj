@@ -161,7 +161,7 @@ def prep_data(tagged_sents):
     tag2idx = {t: i for i,t in enumerate(set(tags))}
 
     data_seqs = [[word2idx[w] for w in words[i:i+50]] for i in range(0, len(words), 50)]
-    data_seqs = pad_sequences(sequences=data_seqs, padding="post", value=len(words))
+    data_seqs = pad_sequences(sequences=data_seqs, padding="post", value=len(word2idx))
 
     tag_seqs = [[tag2idx[t] for t in tags[i:i+50]] for i in range(0, len(tags), 50)]
     tag_seqs = pad_sequences(sequences=tag_seqs, padding="post", value=tag2idx["O"])

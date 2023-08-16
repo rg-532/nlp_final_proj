@@ -119,6 +119,6 @@ def sentiment_model_predictions(docs: Dict[str, List[str]], targets: Dict[str, s
 
     for dname, d_seq, tag in tqdm(zip(doc_names, data, tags), desc="Generating Predictions . . ."):
         pred = np.argmax(model.predict(np.array([d_seq]), verbose=0)[0]).item()
-        results[dname] = (idx2tag[tag], idx2tag[pred])
+        results[dname] = idx2tag[pred]
     
     return results
